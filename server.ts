@@ -7,7 +7,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
 
@@ -26,6 +26,28 @@ const ai = new GoogleGenAI({
     }
   }
 });
+
+function extractJsonArray(text: string): any[] {
+  if (!text) return [];
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // Strip markdown code blocks if any
+    let cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    try {
+      return JSON.parse(cleaned);
+    } catch (e2) {
+      // Fallback: extract substring between first '[' and last ']'
+      const firstBracket = cleaned.indexOf('[');
+      const lastBracket = cleaned.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        const jsonSubstr = cleaned.substring(firstBracket, lastBracket + 1);
+        return JSON.parse(jsonSubstr);
+      }
+      throw e2;
+    }
+  }
+}
 
 // API endpoint for flat extraction using Gemini Vision
 app.post('/api/extract', async (req, res) => {
@@ -59,9 +81,9 @@ app.post('/api/extract', async (req, res) => {
       - "LONG FUNG COURT" -> "朗風苑"
       - "YU FUNG COURT" -> "裕豐苑"
 
-      Format the flat name strictly as "[Estate Name] [Block]座 [Floor]樓 [Flat]" or standard Chinese format (e.g., "樂嶺軒 29樓 A1", "啟陽苑 A座 36樓 01", "盛緻苑 Shing Chi Court A座 37樓 1單位"). Avoid raw English terms like "Block", "Floor", "Flat".
+      Format the flat name strictly as "[Estate Name] [Block]座 [Floor]樓 [Flat]" or standard Chinese format (e.g., "樂嶺軒 29樓 A1", "啟陽苑 A座 36樓 01", "盛緻苑 A座 37樓 1單位"). Avoid raw English terms like "Block", "Floor", "Flat".
       
-      Return the result as a JSON array of objects with the following keys:
+      You MUST output ONLY a valid JSON array (and nothing else, no markdown prefix if possible, or inside standard json code blocks) of objects with the following keys:
       - "flat": string (formatted flat name in Chinese)
       - "displayTime": string (exact time as shown in image, e.g. "11:55 上午" or "14:30")
       - "isoTime": string (ISO 8601 timestamp e.g. "2026-10-16T11:55:00" or current date fallback if time is missing)
@@ -83,27 +105,13 @@ app.post('/api/extract', async (req, res) => {
           ]
         },
         config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                flat: { type: Type.STRING },
-                displayTime: { type: Type.STRING },
-                isoTime: { type: Type.STRING },
-                saleableArea: { type: Type.STRING },
-                price: { type: Type.STRING }
-              },
-              required: ["flat", "displayTime", "isoTime"]
-            }
-          }
+          responseMimeType: 'application/json'
         }
       });
 
       if (response.text) {
         try {
-          const parsed = JSON.parse(response.text.trim());
+          const parsed = extractJsonArray(response.text);
           if (Array.isArray(parsed)) {
             allExtractedItems.push(...parsed);
           }
