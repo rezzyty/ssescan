@@ -1,0 +1,6 @@
+{
+  "name": "揀樓結果提取器 (Flat Selection Extractor)",
+  "description": "AI-powered flat selection scanner and data extractor with official estate reference database.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
